@@ -11,7 +11,7 @@ It supports managing **Authors, Categories, and Books**, enforces **authenticati
 All routes are **protected by authentication middleware**.  
 The API is designed to be clean, extensible, and easy to test using Postman.
 
-##  Project Structure
+
 LibrarySystem/
 ├── app/
 │ ├── main.py # FastAPI app entry point
@@ -23,22 +23,20 @@ LibrarySystem/
 │
 ├── .gitignore # Ignored files
 ├── requirements.txt # Dependencies
-## 📂 Project Structure
+##  Project Structure
 
 ```
 LibrarySystem/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   └── middleware.py
+│   ├── main.py  # FastAPI app entry point
+│   ├── database.py # Database connection & session
+│   ├── models.py  # SQLAlchemy models
+│   ├── schemas.py # Pydantic schemas
+│   └── middleware.py # Authentication 
 │
-├── .env.example
 ├── .gitignore
-├── requirements.txt
-└── README.md
+└── requirements.txt # Dependencies
 ```
 
 
