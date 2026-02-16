@@ -23,6 +23,24 @@ LibrarySystem/
 │
 ├── .gitignore # Ignored files
 ├── requirements.txt # Dependencies
+## 📂 Project Structure
+
+```
+LibrarySystem/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── database.py
+│   ├── models.py
+│   ├── schemas.py
+│   └── middleware.py
+│
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
 
 ## Commands to run
 1.Create a virtual environment and activate-venv\Scripts\activate
