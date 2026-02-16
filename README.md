@@ -31,8 +31,7 @@ LibrarySystem/
 ## Commands to run
 1. Create a virtual environment and activate-venv\Scripts\activate
 2. Install dependencies-pip install -r requirements.txt
-3. Run the server- uvicorn app.main:app --port 8001
-**http://127.0.0.1:8000/docs because I have used SwaggerUI**
+3. Run the server- uvicorn app.main:app --port 8001 CRUD output can be checked in **http://127.0.0.1:8000/docs because I have used SwaggerUI**
 4. To check the middleware just remove the comments and run the server.
 5. Use Postman to check if the authentication is working by entering the credentials.
 
