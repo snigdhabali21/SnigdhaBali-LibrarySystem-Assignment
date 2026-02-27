@@ -1,5 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
+from collections import Counter
+from typing import Optional
+from sqlalchemy import asc
+from sqlalchemy.exc import IntegrityError
 #from .middleware import middleware
 
 from .database import engine, get_db
@@ -16,7 +21,13 @@ app = FastAPI(title="Library Management API")
 # @app.get("/whoami")
 # def whoami(request: Request):
 #     return request.state.user
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ---------------- ROUTES FIRST ----------------
 
 @app.get("/")
@@ -66,12 +77,59 @@ def delete_author(author_id: int, db: Session = Depends(get_db)):
 
     if not db_author:
         raise HTTPException(status_code=404, detail="Author not found")
+    try:
+        db.delete(db_author)
+        db.commit()
+        return {"message": "Author deleted"}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete author with existing books"
+        )
+@app.get("/authors/{author_id}")
+def get_author_details(author_id: int, db: Session = Depends(get_db)):
+    author = db.query(Author).filter(Author.id == author_id).first()
 
-    db.delete(db_author)
-    db.commit()
+    if not author:
+        raise HTTPException(status_code=404, detail="Author not found")
 
-    return {"message": "Author deleted successfully"}
-#--------------------------Category CRUD----------------------#
+    books = (
+        db.query(Book)
+        .filter(Book.author_id == author_id)
+        .order_by(Book.publication_year.asc())
+        .all()
+    )
+
+    return {
+        "id": author.id,
+        "name": author.name,
+        "books": [
+            {
+                "id": book.id,
+                "title": book.title,
+                "publication_year": book.publication_year
+            }
+            for book in books
+        ]
+    }
+@app.get("/authors/{author_id}/stats")
+def author_stats(author_id: int, db: Session = Depends(get_db)):
+    books = db.query(Book).filter(Book.author_id == author_id).all()
+
+    if not books:
+        return {
+            "earliest_book": None,
+            "latest_book": None
+        }
+
+    sorted_books = sorted(books, key=lambda b: b.publication_year)
+
+    return {
+        "earliest_book": sorted_books[0].title,
+        "latest_book": sorted_books[-1].title
+    } 
+#----------------Category CRUD----------------------#
 @app.post("/categories", response_model=CategoryResponse)
 def create_category(
     category: CategoryCreate,
@@ -154,17 +212,56 @@ def create_book(
     return db_book
 
 @app.get("/books", response_model=list[BookResponse])
-def get_books(db: Session = Depends(get_db)):
-    return db.query(Book).all()
+#def get_books(db: Session = Depends(get_db)):
+   # return db.query(Book).all()
+def get_books(
+    author_id: Optional[int] = None,
+    category_id: Optional[int] = None,
+    year: Optional[int] = None,
+    min_year: Optional[int] = None,
+    max_year: Optional[int] = None,
+    limit: Optional[int] = None,
+    sort: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Book)
+
+    if author_id:
+        query = query.filter(Book.author_id == author_id)
+
+    if category_id:
+        query = query.filter(Book.category_id == category_id)
+
+    if year:
+        query = query.filter(Book.publication_year == year)
+
+    if min_year:
+        query = query.filter(Book.publication_year >= min_year)
+
+    if max_year:
+        query = query.filter(Book.publication_year <= max_year)
+
+    if sort == "title":
+        query = query.order_by(asc(Book.title))
+
+    if limit:
+        query = query.limit(limit)
+
+    return query.all()
 @app.get("/books/insights")
 def book_insights(db: Session = Depends(get_db)):
     books = db.query(Book).all()
 
+    total_books = len(books)
+
     if not books:
         return {
+            "total_books": 0,
+            "average_year": None,
             "valid_books": [],
             "top_authors": [],
-            "busy_years": []
+            "books_per_category": [],
+            "busy_years": {}
         }
 
     valid_books = []
@@ -176,6 +273,15 @@ def book_insights(db: Session = Depends(get_db)):
         ):
             valid_books.append(book)
 
+    # Average publication year
+    if valid_books:
+        avg_year = round(
+            sum(book.publication_year for book in valid_books) / len(valid_books), 2
+        )
+    else:
+        avg_year = None
+
+    # Top authors
     author_counts = {}
     for book in valid_books:
         name = book.author.name
@@ -192,6 +298,18 @@ def book_insights(db: Session = Depends(get_db)):
         for name, count in top_authors
     ]
 
+    # Books per category
+    category_counts = Counter()
+    for book in valid_books:
+        if book.category:
+            category_counts[book.category.name] += 1
+
+    books_per_category = [
+        {"category": name, "count": count}
+        for name, count in category_counts.items()
+    ]
+
+    # Busy years (2+ books)
     year_map = {}
     for book in valid_books:
         year = book.publication_year
@@ -206,18 +324,23 @@ def book_insights(db: Session = Depends(get_db)):
     busy_years_sorted = dict(sorted(busy_years.items()))
 
     return {
+        "total_books": total_books,
+        "average_year": avg_year,
         "valid_books": [
             {
                 "id": book.id,
                 "title": book.title,
                 "publication_year": book.publication_year,
-                "author": book.author.name
+                "author": book.author.name,
+                "category": book.category.name if book.category else None
             }
             for book in valid_books
         ],
         "top_authors": top_authors_result,
+        "books_per_category": books_per_category,
         "busy_years": busy_years_sorted
     }
+
 
 # ---------------- Insights report---------------#
 
